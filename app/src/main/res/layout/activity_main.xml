@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    tools:context=".MainActivity">
+
+    <com.budiyev.android.codescanner.CodeScannerView
+        android:id="@+id/scannerView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <TextView
+        android:id="@+id/scanResultTextView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="16sp"
+        android:padding="16dp"
+        android:gravity="center"
+        android:layout_gravity="center_horizontal"/>
+
+    <androidx.appcompat.widget.LinearLayoutCompat
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btn_rescan"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="10dp"
+            android:layout_marginBottom="10dp"
+            android:text="Rescan"
+            android:textStyle="bold"
+            android:textColor="@android:color/white"
+            android:background="@drawable/bg_button"/>
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btn_create_qr"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="10dp"
+            android:layout_marginBottom="10dp"
+            android:text="Create QR"
+            android:textStyle="bold"
+            android:textColor="@android:color/white"
+            android:background="@drawable/bg_button"/>
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btn_copy"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="10dp"
+            android:layout_marginBottom="10dp"
+            android:text="Copy QR"
+            android:textStyle="bold"
+            android:textColor="@android:color/white"
+            android:background="@drawable/bg_button"/>
+
+    </androidx.appcompat.widget.LinearLayoutCompat>
+
+    <com.google.android.gms.ads.AdView
+        android:id="@+id/adview"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:adSize="SMART_BANNER"
+        app:adUnitId="ca-app-pub-8604728728100888/9154889617"/>
+
+</LinearLayout>

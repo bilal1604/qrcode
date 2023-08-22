@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp"
+    tools:context=".CreateQRActivity">
+
+    <EditText
+        android:id="@+id/text_iput_qr"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Enter the text or number or URL that you want to make a barcode"
+        android:padding="16dp" />
+
+    <ImageView
+        android:id="@+id/previewImageView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/text_iput_qr"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="16dp"
+        android:visibility="gone" />
+
+    <androidx.appcompat.widget.AppCompatButton
+        android:id="@+id/previewButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_button"
+        android:textColor="@color/white"
+        android:layout_below="@id/previewImageView"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="16dp"
+        android:textStyle="bold"
+        android:text="Preview QR Code" />
+
+    <androidx.appcompat.widget.AppCompatButton
+        android:id="@+id/saveButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/previewButton"
+        android:layout_marginTop="16dp"
+        android:background="@drawable/bg_button"
+        android:textColor="@color/white"
+        android:layout_alignParentEnd="true"
+        android:textStyle="bold"
+        android:text="Save " />
+
+
+
+</RelativeLayout>
