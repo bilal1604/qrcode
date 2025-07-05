@@ -1,20 +1,16 @@
 package com.flaying_rainbows_scanner
 
-
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
-import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
-import android.view.View
-import android.widget.Button
-import android.widget.TextView
-import android.widget.Toast
+import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.app.ActivityCompat
@@ -22,12 +18,18 @@ import androidx.core.content.ContextCompat
 import com.budiyev.android.codescanner.CodeScanner
 import com.budiyev.android.codescanner.CodeScannerView
 import com.budiyev.android.codescanner.DecodeCallback
-import com.google.android.gms.ads.AdRequest
-import com.google.android.gms.ads.AdView
-import com.google.android.gms.ads.LoadAdError
-import com.google.android.gms.ads.MobileAds
+import com.google.android.gms.ads.*
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
+
+import android.provider.MediaStore
+import android.graphics.BitmapFactory
+import androidx.activity.result.contract.ActivityResultContracts
+import com.google.mlkit.vision.barcode.BarcodeScannerOptions
+import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.common.InputImage
+
 
 class MainActivity : AppCompatActivity() {
 
@@ -37,34 +39,148 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var codeScanner: CodeScanner
     private var mInterstitialAd: InterstitialAd? = null
-    private lateinit var mAdView : AdView
-
+    private lateinit var mAdView: AdView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        startscan()
-        iklan()
-        rescanner()
-        opencreate()
-        copy()
+
+        requestCameraPermission()
+        setupAds()
+        setupMenuPopup()
+
+        // Tambahkan listener untuk ikon upload dari galeri
+        findViewById<ImageView>(R.id.menuUploadQR)?.setOnClickListener {
+            requestGalleryPermission()
+        }
 
     }
 
-    fun startscan() {
-        val scannerView: CodeScannerView = findViewById(R.id.scannerView)
-        codeScanner = CodeScanner(this, scannerView)
+    // Cek & minta izin untuk akses galeri
+    private fun requestGalleryPermission() {
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.READ_MEDIA_IMAGES),
+                    102
+                )
+            } else {
+                openGallery()
+            }
+        } else {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE),
+                    102
+                )
+            } else {
+                openGallery()
+            }
+        }
+    }
 
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
+    // Buka galeri untuk memilih gambar
+    private fun openGallery() {
+        val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+        galleryLauncher.launch(intent)
+    }
+
+    // Launcher untuk memilih gambar dari galeri
+    private val galleryLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK && result.data != null) {
+            val imageUri: Uri? = result.data?.data
+            imageUri?.let {
+                processImageFromUri(it)
+            }
+        }
+    }
+    // Proses gambar dari galeri menggunakan ML Kit
+    private fun processImageFromUri(uri: Uri) {
+        try {
+            val inputStream = contentResolver.openInputStream(uri)
+            val bitmap = BitmapFactory.decodeStream(inputStream)
+            val image = InputImage.fromBitmap(bitmap, 0)
+
+            val options = BarcodeScannerOptions.Builder()
+                .setBarcodeFormats(Barcode.FORMAT_ALL_FORMATS)
+                .build()
+
+            val scanner = BarcodeScanning.getClient(options)
+            scanner.process(image)
+                .addOnSuccessListener { barcodes ->
+                    if (barcodes.isNotEmpty()) {
+                        val result = barcodes.first().rawValue ?: "Cannot read QR"
+                        handleScanResult(result)
+                    } else {
+                        Toast.makeText(this, "QR Code not found in image", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                .addOnFailureListener {
+                    Toast.makeText(this, "Failed to process image", Toast.LENGTH_SHORT).show()
+                }
+
+        } catch (e: Exception) {
+            Toast.makeText(this, "An error occurred while reading the image", Toast.LENGTH_SHORT).show()
+            e.printStackTrace()
+        }
+    }
+
+
+
+    private fun hasCameraPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
+                PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun requestCameraPermission() {
+        if (!hasCameraPermission()) {
             ActivityCompat.requestPermissions(
                 this,
                 arrayOf(Manifest.permission.CAMERA),
                 CAMERA_PERMISSION_REQUEST_CODE
             )
+        } else {
+            setupScanner()
         }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        if (requestCode == CAMERA_PERMISSION_REQUEST_CODE) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "Camera permission granted", Toast.LENGTH_SHORT).show()
+                setupScanner()
+            } else {
+                Toast.makeText(this, "Camera permission denied", Toast.LENGTH_SHORT).show()
+            }
+
+        } else if (requestCode == 102) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                openGallery()
+            } else {
+                Toast.makeText(this, "Gallery permission denied", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+
+    private fun setupScanner() {
+        val scannerView: CodeScannerView = findViewById(R.id.scannerView)
+        codeScanner = CodeScanner(this, scannerView)
 
         codeScanner.decodeCallback = DecodeCallback { result ->
             runOnUiThread {
@@ -75,113 +191,46 @@ class MainActivity : AppCompatActivity() {
         scannerView.setOnClickListener {
             codeScanner.startPreview()
         }
+
+        codeScanner.startPreview()
     }
 
     override fun onResume() {
         super.onResume()
-        codeScanner.startPreview()
+        if (hasCameraPermission()) {
+            val scannerView: CodeScannerView = findViewById(R.id.scannerView)
+            scannerView.postDelayed({
+                if (::codeScanner.isInitialized) {
+                    findViewById<TextView>(R.id.scanResultTextView).text = "" // Clear result
+                    codeScanner.startPreview()
+                }
+            }, 500) // Delay untuk pastikan view siap
+        }
     }
 
     override fun onPause() {
-        codeScanner.releaseResources()
+        if (::codeScanner.isInitialized) {
+            codeScanner.releaseResources()
+        }
         super.onPause()
     }
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == CAMERA_PERMISSION_REQUEST_CODE) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "Successfully Allowed", Toast.LENGTH_SHORT).show()
-                codeScanner.startPreview()
-            } else {
-                Toast.makeText(this, "Not allowed", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-
-    var rescanClickCount = 0
-
-    fun rescanner() {
-        val rescanButton: Button = findViewById(R.id.btn_rescan)
-        rescanButton.setOnClickListener {
-            rescanClickCount++
-            if (rescanClickCount >= 3) {
-                // Jika tombol rescanner diklik 3 kali atau lebih, tampilkan interstitial
-                codeScanner.startPreview()
-                val scanResultTextView: TextView = findViewById(R.id.scanResultTextView)
-                scanResultTextView.text = ""
-                interstisial()
-
-                // Reset hitungan klik
-                rescanClickCount = 0
-            } else {
-                // Jika tombol rescanner diklik kurang dari 3 kali, lanjutkan rescan
-                codeScanner.startPreview()
-                val scanResultTextView: TextView = findViewById(R.id.scanResultTextView)
-                scanResultTextView.text = ""
-            }
-        }
-    }
-
-    fun copy() {
-        val scanResultTextView: TextView = findViewById(R.id.scanResultTextView)
-        val btncopy: Button = findViewById(R.id.btn_copy)
-        btncopy.setOnClickListener {
-            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            val clip: ClipData = ClipData.newPlainText("save text",scanResultTextView.text)
-            clipboard.setPrimaryClip(clip)
-            Toast.makeText(this,"${scanResultTextView.text}",Toast.LENGTH_SHORT).show()
-            Toast.makeText(this,"Copy Successfully",Toast.LENGTH_SHORT).show()
-        }
-    }
-
-
-    fun iklan(){
-
-        MobileAds.initialize(this) {}
-
-        mAdView = findViewById(R.id.adview)
-        val adRequest = AdRequest.Builder().build()
-        mAdView.loadAd(adRequest)
-    }
-
-    fun interstisial() {
-        val adRequest = AdRequest.Builder().build()
-
-        InterstitialAd.load(this,"ca-app-pub-8604728728100888/8831455986", adRequest, object : InterstitialAdLoadCallback() {
-            override fun onAdFailedToLoad(adError: LoadAdError) {
-                adError.toString().let { Log.d(ContentValues.TAG, it) }
-                mInterstitialAd = null
-            }
-
-            override fun onAdLoaded(interstitialAd: InterstitialAd) {
-                Log.d(ContentValues.TAG, "Ad was loaded.")
-                mInterstitialAd = interstitialAd
-            }
-        })
-        if (mInterstitialAd != null) {
-            mInterstitialAd?.show(this)
-        } else {
-            Log.d("TAG", "The interstitial ad wasn't ready yet.")
-        }
-    }
-
+    @SuppressLint("SetTextI18n")
     private fun handleScanResult(scanResult: String) {
+        Log.d("SCAN_RESULT", "Hasil scan: $scanResult")
+
         val scanResultTextView: TextView = findViewById(R.id.scanResultTextView)
-        scanResultTextView.text = scanResult
+        scanResultTextView.text = "Scan Result : $scanResult"
 
-        if (isGoogleMapsLink(scanResult)) {
-            openGoogleMaps(scanResult)
-        } else if (isWebsiteLink(scanResult)) {
-            openWebsite(scanResult)
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText("Scan Result", scanResult)
+        clipboard.setPrimaryClip(clip)
+        Toast.makeText(this, "Copied to clipboard: $scanResult", Toast.LENGTH_SHORT).show()
+
+        when {
+            isGoogleMapsLink(scanResult) -> openGoogleMaps(scanResult)
+            isWebsiteLink(scanResult) -> openWebsite(scanResult)
         }
-
-
     }
 
     private fun isGoogleMapsLink(text: String): Boolean {
@@ -197,7 +246,7 @@ class MainActivity : AppCompatActivity() {
         if (intent.resolveActivity(packageManager) != null) {
             startActivity(intent)
         } else {
-            Toast.makeText(this, "Google Maps tidak terpasang.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Google Maps is not installed.", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -206,16 +255,78 @@ class MainActivity : AppCompatActivity() {
         if (intent.resolveActivity(packageManager) != null) {
             startActivity(intent)
         } else {
-            Toast.makeText(this, "Tidak ada aplikasi yang dapat membuka tautan ini.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "No application can open this link.", Toast.LENGTH_SHORT).show()
         }
     }
 
-    fun opencreate(){
-        val btnCreateQR: Button = findViewById(R.id.btn_create_qr)
-        btnCreateQR.setOnClickListener {
-            val intent = Intent(this, CreateQRActivity::class.java)
-            startActivity(intent)
-        }
 
+
+
+
+
+
+
+
+
+    private fun setupAds() {
+        MobileAds.initialize(this) {}
+        mAdView = findViewById(R.id.adview)
+        val adRequest = AdRequest.Builder().build()
+        mAdView.loadAd(adRequest)
+    }
+
+    private fun showInterstitialAd() {
+        val adRequest = AdRequest.Builder().build()
+        InterstitialAd.load(this, "ca-app-pub-8604728728100888/8831455986", adRequest,
+            object : InterstitialAdLoadCallback() {
+                override fun onAdLoaded(interstitialAd: InterstitialAd) {
+                    mInterstitialAd = interstitialAd
+                    interstitialAd.show(this@MainActivity)
+                }
+
+                override fun onAdFailedToLoad(adError: LoadAdError) {
+                    Log.d("ADS", "Failed to load ad: ${adError.message}")
+                    mInterstitialAd = null
+                }
+            })
+    }
+
+    private fun setupMenuPopup() {
+        val menuIcon: ImageView = findViewById(R.id.menuIcon)
+
+        menuIcon.setOnClickListener {
+            val popup = PopupMenu(this, menuIcon)
+            popup.menuInflater.inflate(R.menu.main_menu, popup.menu)
+            popup.setOnMenuItemClickListener { item ->
+                when (item.itemId) {
+                    R.id.menu_rescan -> {
+                        showInterstitialAd()
+                        if (::codeScanner.isInitialized) {
+                            findViewById<TextView>(R.id.scanResultTextView).text = ""
+                            codeScanner.startPreview()
+                        }
+                        Toast.makeText(this, "Rescan", Toast.LENGTH_SHORT).show()
+                        true
+                    }
+
+                    R.id.menu_copy -> {
+                        val result = findViewById<TextView>(R.id.scanResultTextView).text
+                        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        val clip = ClipData.newPlainText("QR Result", result)
+                        clipboard.setPrimaryClip(clip)
+                        Toast.makeText(this, "Copied: $result", Toast.LENGTH_SHORT).show()
+                        true
+                    }
+
+                    R.id.menu_create_qr -> {
+                        startActivity(Intent(this, CreateQRActivity::class.java))
+                        true
+                    }
+
+                    else -> false
+                }
+            }
+            popup.show()
+        }
     }
 }

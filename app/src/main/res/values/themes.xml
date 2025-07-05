@@ -3,7 +3,7 @@
     <style name="Base.Theme.ScanBarcode" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- Customize your light theme here. -->
         <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
-        <item name="android:statusBarColor">#2083B1</item>
+        <item name="android:statusBarColor">#1B3C53</item>
     </style>
 
     <style name="Theme.ScanBarcode" parent="Base.Theme.ScanBarcode" />

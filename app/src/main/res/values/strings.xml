@@ -1,4 +1,9 @@
 <resources>
     <string name="app_name">Scan Barcode</string>
+    <string name="hasil_scan_akan_muncul_di_sini">Hasil scan akan muncul di sini</string>
+    <string name="copy">Copy</string>
+    <string name="rescan">Rescan</string>
+    <string name="create_qr">Create QR</string>
+    <string name="menu">Menu</string>
 
 </resources>

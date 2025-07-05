@@ -1,20 +1,22 @@
 package com.flaying_rainbows_scanner
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.content.ContentValues
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.view.View
-import android.widget.Button
-import android.widget.EditText
-import android.widget.ImageView
-import android.widget.Toast
-import androidx.annotation.RequiresApi
+import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdView
+import com.google.android.gms.ads.MobileAds
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.WriterException
 import com.google.zxing.common.BitMatrix
@@ -27,22 +29,31 @@ class CreateQRActivity : AppCompatActivity() {
     private lateinit var previewImageView: ImageView
     private lateinit var previewButton: Button
     private lateinit var saveButton: Button
-    private  lateinit var shareButton: Button
+    private lateinit var adView: AdView
+    private lateinit var adView1: AdView
 
     companion object {
         private const val REQUEST_CODE_PERMISSION = 123
     }
-    @RequiresApi(Build.VERSION_CODES.R)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
         setContentView(R.layout.activity_create_qractivity)
 
-
         qrEditText = findViewById(R.id.text_iput_qr)
         previewImageView = findViewById(R.id.previewImageView)
         previewButton = findViewById(R.id.previewButton)
         saveButton = findViewById(R.id.saveButton)
+
+        // Inisialisasi AdMob
+        MobileAds.initialize(this) {}
+
+        adView = findViewById(R.id.adviewcreate)
+        adView1 = findViewById(R.id.adviewcreate1)
+        val adRequest = AdRequest.Builder().build()
+        adView.loadAd(adRequest)
+        adView1.loadAd(adRequest)
 
         previewButton.setOnClickListener {
             val textToEncode = qrEditText.text.toString()
@@ -50,9 +61,10 @@ class CreateQRActivity : AppCompatActivity() {
                 Toast.makeText(this, "Input text must be filled first", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            val qrCodeBitmap = generateQRCodeBitmap(textToEncode, 600, 600)
+
+            val qrCodeBitmap = generateQRCodeBitmap(textToEncode)
             previewImageView.setImageBitmap(qrCodeBitmap)
-            previewImageView.visibility = View.VISIBLE // Menampilkan preview gambar
+            previewImageView.visibility = View.VISIBLE
         }
 
         saveButton.setOnClickListener {
@@ -62,64 +74,101 @@ class CreateQRActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            if (checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
-                // Permission already granted, proceed with saving the image
-                val qrCodeBitmap = generateQRCodeBitmap(textToEncode, 600, 600)
-                if (qrCodeBitmap != null) {
-                    saveImageToGallery(qrCodeBitmap)
-                    previewImageView.visibility = View.GONE // Hide preview after saving
+            // Android 9 (API 28) butuh permission WRITE_EXTERNAL_STORAGE
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                if (ContextCompat.checkSelfPermission(
+                        this,
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    ActivityCompat.requestPermissions(
+                        this,
+                        arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
+                        REQUEST_CODE_PERMISSION
+                    )
+                    return@setOnClickListener
                 }
-                qrEditText.text.clear() // Clear the content of qrEditText after saving
-            } else {
-                // Permission not granted, request permission from the user
-                requestPermissions(arrayOf(android.Manifest.permission.WRITE_EXTERNAL_STORAGE), REQUEST_CODE_PERMISSION)
             }
+
+            val qrCodeBitmap = generateQRCodeBitmap(textToEncode)
+            saveImageToGallery(qrCodeBitmap)
+            previewImageView.visibility = View.GONE
+            qrEditText.text.clear()
         }
-
-
-
     }
 
-
-
-
-    private fun generateQRCodeBitmap(data: String, width: Int, height: Int): Bitmap? {
+    @SuppressLint("UseKtx")
+    private fun generateQRCodeBitmap(data: String): Bitmap {
+        val width = 600
+        val height = 600
         val qrCodeWriter = QRCodeWriter()
-        try {
-            val bitMatrix: BitMatrix = qrCodeWriter.encode(data, BarcodeFormat.QR_CODE, width, height)
+        return try {
+            val bitMatrix: BitMatrix =
+                qrCodeWriter.encode(data, BarcodeFormat.QR_CODE, width, height)
             val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
             for (x in 0 until width) {
                 for (y in 0 until height) {
-                    bitmap.setPixel(x, y, if (bitMatrix[x, y]) 0xFF000000.toInt() else 0xFFFFFFFF.toInt())
+                    bitmap.setPixel(
+                        x,
+                        y,
+                        if (bitMatrix[x, y]) 0xFF000000.toInt() else 0xFFFFFFFF.toInt()
+                    )
                 }
             }
-            return bitmap
+            bitmap
         } catch (e: WriterException) {
-            e.printStackTrace()
-            return null
+            Toast.makeText(this, "Failed to generate QR Code", Toast.LENGTH_SHORT).show()
+            Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
         }
     }
 
-    @RequiresApi(30)
     private fun saveImageToGallery(bitmap: Bitmap) {
+        val filename = "QR_Code_${System.currentTimeMillis()}.png"
         val contentValues = ContentValues().apply {
-            put(MediaStore.Images.Media.DISPLAY_NAME, "QR_Code_${System.currentTimeMillis()}.png")
+            put(MediaStore.Images.Media.DISPLAY_NAME, filename)
             put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/QRGenerator")
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
         }
 
         val resolver = contentResolver
-        val collection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
-        val item = resolver.insert(collection, contentValues)
+        val imageUri = resolver.insert(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            contentValues
+        )
 
-        if (item != null) {
-            val outputStream: OutputStream? = resolver.openOutputStream(item)
-            if (outputStream != null) {
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
-                outputStream.close()
+        if (imageUri != null) {
+            val outputStream: OutputStream? = resolver.openOutputStream(imageUri)
+            outputStream?.use {
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+            }
 
-                Toast.makeText(this, "Save Photo Successfully To Gallery", Toast.LENGTH_SHORT).show()
-                Toast.makeText(this, "Make sure the internet connection is smooth when saving photos and wait a few moments ..", Toast.LENGTH_SHORT).show()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                contentValues.clear()
+                contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
+                resolver.update(imageUri, contentValues, null, null)
+            }
 
+            Toast.makeText(this, "Saved to Gallery!", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(this, "Failed to save image", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Optional: handle permission result
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_CODE_PERMISSION) {
+            if ((grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
+                saveButton.performClick() // Retry save action
+            } else {
+                Toast.makeText(this, "Permission denied", Toast.LENGTH_SHORT).show()
             }
         }
     }
